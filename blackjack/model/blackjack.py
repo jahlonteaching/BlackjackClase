@@ -1,11 +1,13 @@
+import random
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 CORAZON = "\u2764\uFE0F"
 TREBOL = "\u2663\uFE0F"
 DIAMANTE = "\u2666\uFE0F"
 ESPADA = "\u2660\uFE0F"
 TAPADA = "\u25AE\uFE0F"
+FICHAS_INICIALES = 100
 
 
 @dataclass
@@ -16,6 +18,17 @@ class Carta:
     valor: str
     tapada: bool = field(default=False, init=False)
 
+    def calcular_valor(self, as_como_11=True) -> int:
+        if self.valor == "A":
+            if as_como_11:
+                return 11
+            else:
+                return 1
+        elif self.valor == ["J", "Q", "K"]:
+            return 10
+        else:
+            return int(self.valor)
+
 
 class Mano:
 
@@ -24,16 +37,31 @@ class Mano:
         self.cartas.extend(cartas)
 
     def es_blackjack(self) -> bool:
-        pass
+        if len(self.cartas) > 2:
+            return False
+        else:
+            return self.cartas[0].valor == "A" and self.cartas[1].valor in ["10", "J", "Q", "K"] \
+                    or self.cartas[1].valor == "A" and self.cartas[0].valor in ["10", "J", "Q", "K"]
 
     def agregar_carta(self, carta: Carta):
-        pass
+        self.cartas.append(carta)
 
-    def calcular_valor(self) -> int:
-        pass
+    def calcular_valor(self) -> Union[int, str]:
+        for carta in self.cartas:
+            if carta.tapada:
+                return "--"
+
+        valor = 0
+
+        for carta in self.cartas:
+            valor += carta.calcular_valor(valor < 11)
 
     def destapar(self):
-        pass
+        for carta in self.cartas:
+            carta.tapada = False
+
+    def limpiar(self):
+        self.cartas.clear()
 
 
 class Baraja:
@@ -41,11 +69,19 @@ class Baraja:
     def __init__(self):
         self.cartas: list[Carta] = [Carta(pinta, valor) for valor in Carta.VALORES for pinta in Carta.PINTAS]
 
-    def revolver(self):
-        pass
+    def reiniciar(self):
+        self.cartas = [Carta(pinta, valor) for valor in Carta.VALORES for pinta in Carta.PINTAS]
 
-    def repartir_carta(self, tapada=False) -> Carta:
-        pass
+    def revolver(self):
+        random.shuffle(self.cartas)
+
+    def repartir_carta(self, tapada=False) -> Optional[Carta]:
+        if len(self.cartas) > 0:
+            carta = self.cartas.pop()
+            carta.tapada = tapada
+            return carta
+        else:
+            return None
 
 
 @dataclass
@@ -55,28 +91,28 @@ class Jugador:
     mano: Mano = field(default=None, init=False)
 
     def inicializar_mano(self, cartas: tuple[Carta, Carta]):
-        pass
+        self.mano = Mano(cartas)
 
     def recibir_carta(self, carta: Carta):
-        pass
+        self.mano.agregar_carta(carta)
 
     def agregar_fichas(self, fichas: int):
-        pass
+        self.fichas += fichas
 
     def tiene_fichas(self) -> bool:
-        pass
+        return self.fichas > 0
 
 
 class Casa:
 
     def __init__(self):
-        mano: Optional[Mano] = None
+        self.mano: Optional[Mano] = None
 
     def inicializar_mano(self, cartas: tuple[Carta, Carta]):
-        pass
+        self.mano = Mano(cartas)
 
     def recibir_carta(self, carta: Carta):
-        pass
+        self.mano.agregar_carta(carta)
 
 
 class Blackjack:
@@ -88,31 +124,52 @@ class Blackjack:
         self.baraja: Baraja = Baraja()
 
     def registrar_usuario(self, nombre: str):
-        pass
+        self.jugador = Jugador(nombre, FICHAS_INICIALES)
 
     def iniciar_juego(self, apuesta: int):
-        pass
+        self.apuesta_actual = apuesta
+
+        self.baraja.reiniciar()
+        self.baraja.revolver()
+
+        self.jugador.mano.limpiar()
+        self.cupier.mano.limpiar()
+
+        # repartir la mano del jugador
+        self.jugador.recibir_carta(self.baraja.repartir_carta())
+        self.jugador.recibir_carta(self.baraja.repartir_carta())
+
+        # repartir la mano de la casa
+        self.cupier.recibir_carta(self.baraja.repartir_carta())
+        self.cupier.recibir_carta(self.baraja.repartir_carta(tapada=True))
 
     def repartir_carta_a_jugador(self):
-        pass
+        self.jugador.recibir_carta(self.baraja.repartir_carta())
 
     def jugador_perdio(self) -> bool:
-        pass
+        return self.jugador.mano.calcular_valor() > 21
 
     def destapar_mano_de_la_casa(self):
-        pass
+        self.cupier.mano.destapar()
 
     def casa_puede_pedir(self) -> bool:
-        pass
+        valor_mano_casa = self.cupier.mano.calcular_valor()
+        return valor_mano_casa <= self.jugador.mano.calcular_valor() and valor_mano_casa <= 16
 
     def repartir_carta_a_la_casa(self):
-        pass
+        self.cupier.recibir_carta(self.baraja.repartir_carta())
 
     def jugador_gano(self) -> bool:
-        pass
+        valor_mano_jugador = self.jugador.mano.calcular_valor()
+        valor_mano_casa = self.cupier.mano.calcular_valor()
+        return self.jugador.mano.es_blackjack() or valor_mano_jugador > valor_mano_casa or valor_mano_casa > 21
 
     def casa_gano(self) -> bool:
-        pass
+        valor_mano_jugador = self.jugador.mano.calcular_valor()
+        valor_mano_casa = self.cupier.mano.calcular_valor()
+        return self.cupier.mano.es_blackjack() or valor_mano_jugador < valor_mano_casa or valor_mano_jugador > 21
 
     def hay_empate(self) -> bool:
-        pass
+        valor_mano_jugador = self.jugador.mano.calcular_valor()
+        valor_mano_casa = self.cupier.mano.calcular_valor()
+        return valor_mano_casa == valor_mano_jugador
