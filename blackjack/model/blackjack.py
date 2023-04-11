@@ -12,8 +12,8 @@ FICHAS_INICIALES = 100
 
 @dataclass
 class Carta:
-    PINTAS: ClassVar[list[str]] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
-    VALORES: ClassVar[list[str]] = [CORAZON, TREBOL, DIAMANTE, ESPADA]
+    VALORES: ClassVar[list[str]] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
+    PINTAS: ClassVar[list[str]] = [CORAZON, TREBOL, DIAMANTE, ESPADA]
     pinta: str
     valor: str
     tapada: bool = field(default=False, init=False)
@@ -24,10 +24,16 @@ class Carta:
                 return 11
             else:
                 return 1
-        elif self.valor == ["J", "Q", "K"]:
+        elif self.valor in ["J", "Q", "K"]:
             return 10
         else:
             return int(self.valor)
+
+    def __str__(self):
+        if self.tapada:
+            return f"{TAPADA}"
+        else:
+            return f"{self.valor}{self.pinta}"
 
 
 class Mano:
@@ -56,12 +62,22 @@ class Mano:
         for carta in self.cartas:
             valor += carta.calcular_valor(valor < 11)
 
+        return valor
+
     def destapar(self):
         for carta in self.cartas:
             carta.tapada = False
 
     def limpiar(self):
         self.cartas.clear()
+
+    def __str__(self):
+        str_mano = ""
+        for carta in self.cartas:
+            str_mano += f"{str(carta):^5}"
+
+        return str_mano
+
 
 
 class Baraja:
@@ -102,6 +118,9 @@ class Jugador:
     def tiene_fichas(self) -> bool:
         return self.fichas > 0
 
+    def puede_apostar(self, cantidad: int):
+        return self.fichas >= cantidad
+
 
 class Casa:
 
@@ -132,16 +151,19 @@ class Blackjack:
         self.baraja.reiniciar()
         self.baraja.revolver()
 
-        self.jugador.mano.limpiar()
-        self.cupier.mano.limpiar()
+        if self.jugador.mano is not None:
+            self.jugador.mano.limpiar()
+            self.cupier.mano.limpiar()
 
         # repartir la mano del jugador
-        self.jugador.recibir_carta(self.baraja.repartir_carta())
-        self.jugador.recibir_carta(self.baraja.repartir_carta())
+        carta_1 = self.baraja.repartir_carta()
+        carta_2 = self.baraja.repartir_carta()
+        self.jugador.inicializar_mano((carta_1, carta_2))
 
         # repartir la mano de la casa
-        self.cupier.recibir_carta(self.baraja.repartir_carta())
-        self.cupier.recibir_carta(self.baraja.repartir_carta(tapada=True))
+        carta_1 = self.baraja.repartir_carta()
+        carta_2 = self.baraja.repartir_carta(tapada=True)
+        self.cupier.inicializar_mano((carta_1, carta_2))
 
     def repartir_carta_a_jugador(self):
         self.jugador.recibir_carta(self.baraja.repartir_carta())
